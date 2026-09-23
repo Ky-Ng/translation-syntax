@@ -104,25 +104,85 @@ If the model is unable to generalize a hierarchical rule from the auxiliary copy
 
 2. Add determiners/adjectives which make the noun phrase move as entire units
 
+3. Allow RCs to be in both Subject and Object position timultaneously
+
 ### Dataset Format and Creation
 
-#### Format
-| HI Frame | HF Frame | HI Sentence | HF Sentence |
-| --- | --- | --- | --- |
-| [NP1 [VP2 [NP3]]] | [NP1 [NP3 VP2]]| dog likes cat | dog cat likes |
+Dataset Generation Process:
+![Data Generation Flow](DataGenFlow.png)
+
+1. Use CFG to generate all Ambiguous Frames (e.g. 100 frames) and Unambiguous Frames (e.g. 15 frames)
+
+2. Separate ambiguous frames into 90% (e.g. 90 frames) training and 10% validation (e.g. 10 frames)
+
+    2a. Take training frames and populate with lexical items at random 2x (e.g. 180 frames) for the copy task. Take training frames and populate with lexical items 2x at random to create 180 frames of the translation task.
+
+    2b. Repeat 2a except for the validation frames resulting in 20 frames of validation copy task and 20 frames of validation translate task
+
+3. Use all ambiguous frames and sample 2x lexical items at random(e.g. 30 frames for copying) for the train set. Repeat and select 2x lexical items at random (e.g. 30 frames for translation) for the test set. We evaluate testing on these latter 30 frames.
+
+#### Translation Dataset
+- we will make the simplifying assumption that there are only depth 1 sentences (at max 1 depth RCs)
+
+Example of Training and Validation dataset below (we can arbitrarily set Training and Validation be a 90%-10%):
+
+| Attachment Site | Gap Type | Task | HI Frame | HF Frame | HI Sentence | HF Sentence | is_ambiguous | n_tokens | depth |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| None | None | Copy | [S [NP [N_1]] [VP [VP_intrans [V_intrans_2]]]] | ~ | dog swims | ~ | True | 2 | 0 |
+| None | None | Translate | [S [NP [N_1]] [VP [VP_intrans [V_intrans_2]]]] | [S [NP [N_1]] [VP [VP_intrans [V_intrans_2]]]] | dog swims | dog siwms | True | 2 | 0 |
+| Subject | Object Gap | Copy | [S [NP [N_1] [CP_obj_gap [C_2] [S_obj_gap [NP [N_3]] [VP_obj_gap [V_trans_4]]]]] [VP [VP_trans [V_trans_5] [NP [N_6]]]]] | ~ | cat that bird fears chases dog | ~ | False | 6 | 1 |
+<!-- | None | None | [S [NP [N_1]] [VP [VP_intrans [VP_intrans_adv [V_intrans_2] [AdvP [Adv_3]]]]]] | [S [NP [N_1]] [VP [VP_intrans [VP_intrans_adv [AdvP [Adv_3]] [V_intrans_2]]]]] | dog swims quickly | dog quickly swims | True | 3 | 0 |
+| None | None | [S [NP [N_1]] [VP [VP_trans [V_trans_2] [NP [N_3]]]]] | [S [NP [N_1]] [VP [VP_trans [NP [N_3]] [V_trans_2]]]] | dog likes cat | dog cat likes | True | 3 | 0 |
+| None | None | [S [NP [N_1]] [VP [VP_trans [VP_trans_adv [V_trans_2] [AdvP [Adv_3]]] [NP [N_4]]]]] | [S [NP [N_1]] [VP [VP_trans [NP [N_4]] [VP_trans_adv [AdvP [Adv_3]] [V_trans_2]]]]] | dog likes quickly cat | dog cat quickly likes | True | 4 | 0 | -->
+<!-- | Object | Subject Gap | [S [NP [N_1]] [VP [VP_trans [V_trans_2] [NP [N_3] [CP_subj_gap [C_4] [VP [VP_intrans [V_intrans_5]]]]]]]] | [S [NP [N_1]] [VP [VP_trans [NP [CP_subj_gap [VP [VP_intrans [V_intrans_5]]] [C_4]] [N_3]] [V_trans_2]]]] | cat chases dog that swims | cat swims that dog chases | True | 5 | 1 |
+| Object | Subject Gap | [S [NP [N_1]] [VP [VP_trans [V_trans_2] [NP [N_3] [CP_subj_gap [C_4] [VP [VP_trans [V_trans_5] [NP [N_6]]]]]]]]] | [S [NP [N_1]] [VP [VP_trans [NP [CP_subj_gap [VP [VP_trans [NP [N_6]] [V_trans_5]]] [C_4]] [N_3]] [V_trans_2]]]] | cat chases dog that likes bird | cat bird likes that dog chases | True | 6 | 1 |
+| Object | Object Gap | [S [NP [N_1]] [VP [VP_trans [V_trans_2] [NP [N_3] [CP_obj_gap [C_4] [S_obj_gap [NP [N_5]] [VP_obj_gap [V_trans_6]]]]]]]] | [S [NP [N_1]] [VP [VP_trans [NP [CP_obj_gap [S_obj_gap [NP [N_5]] [VP_obj_gap [V_trans_6]]] [C_4]] [N_3]] [V_trans_2]]]] |  -->
+
+Test example (100% of frames are given to both train for copy task only and test for translation only populated with random items for both):
+
+| Attachment Site | Gap Type | Task | HI Frame | HF Frame | HI Sentence | HF Sentence | is_ambiguous | n_tokens | depth |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Subject | Object Gap | Translate | [S [NP [N_1] [CP_obj_gap [C_2] [S_obj_gap [NP [N_3]] [VP_obj_gap [V_trans_4]]]]] [VP [VP_trans [V_trans_5] [NP [N_6]]]]] | [S [NP [CP_obj_gap [S_obj_gap [NP [N_3]] [VP_obj_gap [V_trans_4]]] [C_2]] [N_1]] [VP [VP_trans [NP [N_6]] [V_trans_5]]]] | zebra that mouse likes sees rabbit | mouse likes that zebra rabbit sees | False | 6 | 1 |
+<!-- | Subject | Subject Gap | [S [NP [N_1] [CP_subj_gap [C_2] [VP [VP_intrans [V_intrans_3]]]]] [VP [VP_trans [V_trans_4] [NP [N_5]]]]] | [S [NP [CP_subj_gap [VP [VP_intrans [V_intrans_3]]] [C_2]] [N_1]] [VP [VP_trans [NP [N_5]] [V_trans_4]]]] | cat that swims chases dog | swims that cat dog chases | False | 5 | 1 |
+| Subject | Subject Gap | [S [NP [N_1] [CP_subj_gap [C_2] [VP [VP_trans [V_trans_3] [NP [N_4]]]]]] [VP [VP_trans [V_trans_5] [NP [N_6]]]]] | [S [NP [CP_subj_gap [VP [VP_trans [NP [N_4]] [V_trans_3]]] [C_2]] [N_1]] [VP [VP_trans [NP [N_6]] [V_trans_5]]]] | cat that likes bird chases dog | bird likes that cat dog chases | False | 6 | 1 | -->
 
 ## Training Task
-a. In Distribution training examples: words that can be 
 
-## Evaluation
-1. What syntactic constructions are models evaluated on?
-2. What metric is being used
+### Loss Computation
+Loss is calculated at each autoregressive step including before the `<sep>` token. `<pad>` tokens do not contribute to the loss. The model should have arbitrary ammounts of padding at the beginning to discourage the model from using absolute position shortcuts.
 
-## Model Architecture
+### Translate Task
+If the task is `Translate`, the model input output is as follows:
 
+```
+<bos> dog chases cat <translate> <sep> dog cat chases <eos>
+```
+
+### Copy Task
+If the task is `Translate`, the model input output is as follows:
+
+```
+<bos> mouse purses bird that sings <copy> <sep> mouse purses bird that sings <eos>
+```
+
+## Model Architecture and Training Hyperparameters
+We sweep model hyperparmeters and seeds using a GPT2LMHeadModel architecture:
+
+1. 8 attention heads, batch size 256, hidden dimension 128
+2. 2 layers, 4 layers, 6 layers
+3. Word-level tokenizer using the vocabulary from experiments/01_grammar_v1/src/cfg/grammar.py
+4. 300K Learning steps, Adam with learning rate 1e-4 and a linear decay schedule. 
+5. Checkpoints every 2K steps saved to ./artifacts and training logged in Wandb with the name gpt2-8hNl300Ks4lr-ce-rb in a new project called translation-syntax
+6. Random shifting of absolute position from 0-25 using padding
+7. Please train with 30 seeds from 42-72 exclusive
+8. Compute loss on all non-pad tokens including before the `<sep>` token
 
 TODO Control for number of setences and tokens that each version of models are trained on
 
 TODO number of sytnactic structures per big umbrella (subject gap attached to subject, object gap attached to object )
 
 train on shifted absolute positions 
+
+## Evaluation
+1. Models are evaluated on translation to the ambiguous sentences
+2. The evaluation metric is exact match

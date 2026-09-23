@@ -66,3 +66,5 @@ If `which slurm` returns `slurm not found`, this means that you may be running l
     - Model run json launch scripts should be saved in ./artifacts and in the Wandb config (Wandb should also have the path to the config script)
 
     - Finished model runs should also have a `Report-<Model>-<Dataset>-<Steps>.md` written in the results folder.
+
+- HF Models and Datasets should be public

@@ -6,6 +6,11 @@ dependencies = [
     "torch>=2.2",
     "pyyaml>=6.0",
     "wandb>=0.16",
+    "nltk>=3.10.3",
+    "huggingface-hub>=1.32.0",
+    "transformers>=5.17.0",
+    "datasets>=5.0.1",
+    "matplotlib>=3.11.2",
 ]
 
 [project.optional-dependencies]
@@ -24,10 +29,11 @@ url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cu124" }
+# CUDA wheels only exist for Linux (the cluster); macOS falls back to PyPI (CPU/MPS)
+torch = [{ index = "pytorch-cu124", marker = "sys_platform == 'linux'" }]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "experiments/*/tests"]
 
 [tool.ruff]
 line-length = 120
