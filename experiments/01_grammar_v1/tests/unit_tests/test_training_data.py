@@ -50,3 +50,12 @@ def test_collate_shifts_vary():
     batch = collate(seqs, random.Random(0))
     shifts = {row.nonzero(as_tuple=True)[0][0].item() for row in batch["attention_mask"]}
     assert len(shifts) > 5, "position shifts should vary across a batch"
+
+
+def test_dataset_tag_keeps_ce_rb_run_names_and_separates_variants():
+    from training.train import dataset_tag
+
+    assert dataset_tag("kylelovesllms/grammar-v1-frames-ce-rb") == "ce-rb"
+    assert dataset_tag("kylelovesllms/grammar-v1-frames-ce") == "ce"
+    assert dataset_tag("/some/local/dir/my-data") == "my-data"
+    assert dataset_tag("kylelovesllms/grammar-v1-frames-ce", override="custom") == "custom"

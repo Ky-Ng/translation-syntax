@@ -23,7 +23,7 @@ slurm_logs/
 wandb/
 
 # Experiment outputs (results/logs/figures inside experiment folders)
-experiments/*/results/
+experiments/*/artifacts/
 experiments/*/logs/
 experiments/*/figures/
 

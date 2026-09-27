@@ -15,6 +15,10 @@ else is derived from this table:
   derivations up to a token-length bound, used for frame generation and for
   the ambiguity tests
 
+The derived functions take the tables (rules, terminal categories, lexicon)
+as optional arguments defaulting to the V1 tables, so that other grammars in
+the same paired-rule format (grammar_number_agreement.py) reuse them.
+
 Frame-level grammar: the terminal categories (N, V_trans, ...) are the
 terminals, so derivations yield "syntactic frames" such as ``N V_trans N``
 that are later populated with lexical items. Because the lexica of the
@@ -82,28 +86,32 @@ LEXICON = {
 }
 
 
-def cfg_string(order="hi", lexicalized=False):
+def cfg_string(order="hi", lexicalized=False, rules=None, terminals=None, lexicon=None):
     """Render the grammar as an nltk-parseable CFG string.
 
     order: "hi" or "hf".
     lexicalized=False: terminal categories are the terminals (frame grammar).
     lexicalized=True: terminal categories stay nonterminal and expand to words.
+    rules / terminals / lexicon: the grammar tables (default: Grammar V1).
     """
     if order not in ("hi", "hf"):
         raise ValueError(f"order must be 'hi' or 'hf', got {order!r}")
+    rules = RULES if rules is None else rules
+    terminals = TERMINAL_CATEGORIES if terminals is None else terminals
+    lexicon = LEXICON if lexicon is None else lexicon
 
     def render(symbol):
-        if not lexicalized and symbol in TERMINAL_CATEGORIES:
+        if not lexicalized and symbol in terminals:
             return f"'{symbol}'"
         return symbol
 
     lines = []
-    for lhs, hi_rhs, hf_rhs in RULES:
+    for lhs, hi_rhs, hf_rhs in rules:
         rhs = hi_rhs if order == "hi" else hf_rhs
         lines.append(f"{lhs} -> {' '.join(render(s) for s in rhs)}")
     if lexicalized:
-        for category in TERMINAL_CATEGORIES:
-            lines.append(f"{category} -> {' | '.join(repr(w) for w in LEXICON[category])}")
+        for category in terminals:
+            lines.append(f"{category} -> {' | '.join(repr(w) for w in lexicon[category])}")
     return "\n".join(lines)
 
 
@@ -117,31 +125,39 @@ def hf_cfg(lexicalized=False):
     return CFG.fromstring(cfg_string("hf", lexicalized))
 
 
-# (lhs, hi_rhs) -> positions of the HI children in HF order
-_HF_CHILD_ORDER = {(lhs, hi_rhs): tuple(hi_rhs.index(s) for s in hf_rhs) for lhs, hi_rhs, hf_rhs in RULES}
+@lru_cache(maxsize=None)
+def _hf_child_order(rules):
+    """(lhs, hi_rhs) -> positions of the HI children in HF order."""
+    return {(lhs, hi_rhs): tuple(hi_rhs.index(s) for s in hf_rhs) for lhs, hi_rhs, hf_rhs in rules}
 
 
-def hi_to_hf(tree):
+def hi_to_hf(tree, rules=None, terminals=None):
     """Mirror an HI parse tree into its HF tree (the hierarchical reversal rule).
 
     Works on frame-level trees (leaves are terminal categories) and on
     lexicalized trees (leaves are words under terminal-category preterminals,
     whose expansions are order-preserving).
     """
-    if not isinstance(tree, Tree):
-        return tree
-    child_symbols = tuple(c.label() if isinstance(c, Tree) else c for c in tree)
-    order = _HF_CHILD_ORDER.get((tree.label(), child_symbols))
-    if order is not None:
-        children = [hi_to_hf(tree[i]) for i in order]
-    elif tree.label() in TERMINAL_CATEGORIES:
-        children = list(tree)
-    else:
-        raise ValueError(f"no paired rule for {tree.label()} -> {child_symbols}")
-    return Tree(tree.label(), children)
+    child_order = _hf_child_order(tuple(RULES if rules is None else rules))
+    terminals = TERMINAL_CATEGORIES if terminals is None else terminals
+
+    def mirror(node):
+        if not isinstance(node, Tree):
+            return node
+        child_symbols = tuple(c.label() if isinstance(c, Tree) else c for c in node)
+        order = child_order.get((node.label(), child_symbols))
+        if order is not None:
+            children = [mirror(node[i]) for i in order]
+        elif node.label() in terminals:
+            children = list(node)
+        else:
+            raise ValueError(f"no paired rule for {node.label()} -> {child_symbols}")
+        return Tree(node.label(), children)
+
+    return mirror(tree)
 
 
-def enumerate_trees(order="hi", max_len=13, rules=None):
+def enumerate_trees(order="hi", max_len=13, rules=None, terminals=None, start=START):
     """Exhaustively enumerate every derivation whose frame has <= max_len tokens.
 
     Returns a list of (frame_tokens, nltk.Tree) pairs, with terminal categories
@@ -150,12 +166,13 @@ def enumerate_trees(order="hi", max_len=13, rules=None):
     its remaining siblings so that recursive cycles strictly shrink the budget.
     """
     rules = RULES if rules is None else rules
+    terminals = TERMINAL_CATEGORIES if terminals is None else terminals
     productions = {}
     for lhs, hi_rhs, hf_rhs in rules:
         productions.setdefault(lhs, []).append(hi_rhs if order == "hi" else hf_rhs)
 
     # fixed-point minimum yield length per symbol
-    min_len = {s: 1 for s in TERMINAL_CATEGORIES}
+    min_len = {s: 1 for s in terminals}
     min_len.update({lhs: float("inf") for lhs in productions})
     changed = True
     while changed:
@@ -171,7 +188,7 @@ def enumerate_trees(order="hi", max_len=13, rules=None):
     def gen(symbol, budget):
         if budget < min_len[symbol]:
             return []
-        if symbol in TERMINAL_CATEGORIES:
+        if symbol in terminals:
             return [((symbol,), symbol)]
         key = (symbol, budget)
         if key not in memo:
@@ -195,9 +212,9 @@ def enumerate_trees(order="hi", max_len=13, rules=None):
         symbol, subtrees = node
         return Tree(symbol, [to_tree(c) for c in subtrees])
 
-    return [(list(frame), to_tree(node)) for frame, node in gen(START, max_len)]
+    return [(list(frame), to_tree(node)) for frame, node in gen(start, max_len)]
 
 
-def generate_frames(order="hi", max_len=13):
+def generate_frames(order="hi", max_len=13, rules=None, terminals=None):
     """All distinct syntactic frames (space-joined category strings) up to max_len tokens."""
-    return sorted({" ".join(frame) for frame, _ in enumerate_trees(order, max_len)})
+    return sorted({" ".join(frame) for frame, _ in enumerate_trees(order, max_len, rules, terminals)})

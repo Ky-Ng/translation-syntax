@@ -20,7 +20,7 @@ from pathlib import Path
 
 from nltk import Tree
 
-from .grammar import TERMINAL_CATEGORIES, enumerate_trees, hi_to_hf
+from .grammar import enumerate_trees, hi_to_hf
 
 # every single-RC frame fits in 8 tokens (N + 4-token RC + 3-token matrix VP);
 # we enumerate a little past that and filter, rather than rely on the bound
@@ -52,8 +52,11 @@ def _indexed(tree, counter):
 
 
 def bracketed(tree):
-    """Render an indexed frame tree as e.g. [S [NP [N_1]] [VP [VP_intrans [V_intrans_2]]]]."""
-    if tree.label() in TERMINAL_CATEGORIES:
+    """Render an indexed frame tree as e.g. [S [NP [N_1]] [VP [VP_intrans [V_intrans_2]]]].
+
+    A terminal is a node whose single child is its HI index (see _indexed), so
+    this works for any grammar's terminal categories."""
+    if len(tree) == 1 and isinstance(tree[0], int):
         return f"[{tree.label()}_{tree[0]}]"
     return "[" + tree.label() + " " + " ".join(bracketed(child) for child in tree) + "]"
 
